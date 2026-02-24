@@ -1,0 +1,241 @@
+---
+title: "01_SNIP-Rpairing"
+output: html_document
+date: "2026-02-14"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(tidyverse)
+library(readr)
+```
+
+#Step1: Prepare the peaks
+
+[Optional] Some regions have easier time finding high scoring gRNAs if you go into the peak. So, we will employ this strategy for regions when designing gRNAs unless the region is too small to begin with. Set a cutoff. In this paper, we set the cutoff as 1000. We selected 1000bp as arbitrary cutoff as we didnt want more than 100bp/1000bp (10%) of the peak being cut into.
+
+So first, we will clasify the region as either 500+ or <500bp
+```{r}
+df<-read.delim("SNIP-R_sgRNApairing/Finaldf.bed.txt",header=F)
+df<-df%>%mutate(Size=V3-V2)
+
+#For smaller region (<=1000), no change in coordiantes
+df_small<-df%>%filter(Size<=500)
+#For larger region (1000+), we will set the new coordinates as (ROIstart+50,ROIend-50)
+df_large<-df%>%filter(Size>500)%>%mutate(NewStart=V2+50)%>%mutate(NewEnd=V3-50)
+df_large_new<-df_large%>%select(one_of(c("V1","NewStart","NewEnd","V4","Size")))
+colnames(df_large_new)<-c("V1","V2","V3","V4","Size")
+
+Step1_01<-rbind(df_large_new,df_small)
+```
+
+#Step2: Create flanks for each region
+550bp flank from left and right of each region, so we will give 550bp range for gRNA selection.
+
+```{r}
+Step2_01<-Step1_01%>%mutate(Left_Start=V2-550)%>%mutate(Left_End=V2)
+Step2_01<-Step2_01%>%mutate(Right_Start=V3)%>%mutate(Right_End=V3+550)
+Step2_01<-Step2_01%>%dplyr::rename(Chr=V1,ROI_Start=V2,ROI_End=V3,Type=V4)
+
+Step2_left<-Step2_01%>%select(one_of("Chr","Left_Start","Left_End"))
+Step2_right<-Step2_01%>%select(one_of("Chr","Right_Start","Right_End"))
+
+# write_tsv(Step2_left,"Step2_left.bed.txt",col_names = F)
+# write_tsv(Step2_right,"Step2_right.bed.txt",col_names = F)
+
+
+
+Step2_01$ROI<-paste(Step2_01$Chr,Step2_01$ROI_Start,Step2_01$ROI_End, sep="-")
+Step2_01$LeftFlank<-paste(Step2_01$Chr,Step2_01$Left_Start,Step2_01$Left_End, sep="-")
+Step2_01$RightFlank<-paste(Step2_01$Chr,Step2_01$Right_Start,Step2_01$Right_End, sep="-")
+
+#write_tsv(Step2_01,"Step2_01_ROItoflank.bed.txt")
+
+```
+We need to separate the left and right regions and input them separately into CRISPick bc some left gRNA region of ROI overlaps with right of another ROI, and the CRISPick batch algorithm does not consider the gRNA region as indpendent and picks worse scoring guides for the second gRNA region.
+
+#Step3: Getfasta sequence for left and right flanks
+
+bedtools getfasta -fi chr12.fa.fai -bed CP11B_flank_left.bed -fo CP11B_output_getfasta_50bpin_left.fa
+```{r}
+fasta <- normalizePath("SNIP-R_sgRNApairing/chr12.fa")
+FastaLeft<-bedtoolsr::bt.getfasta(fi=fasta,bed=Step2_left)
+FastaRight<-bedtoolsr::bt.getfasta(fi=fasta,bed=Step2_right)
+
+# write_tsv(FastaLeft,"Step3_01left_fasta.txt",col_names = F)
+# write_tsv(FastaRight,"Step3_01right_fasta.txt",col_names = F)
+```
+
+#Step4: Put into CRISPick (left and right separately)
+Following parameters were used: Human GRCh37 (hg19), CRISPRko, SpyoCas9 (Chen tracrRNA, RuleSet3), CRISPickQuota: 20. These are suggestions, but with different CRISPick versions, the code needs adjustments. Note, due to the update on CRISPick algorithm, the output from CRISPick might be different from what was used in the paper. For the paper, CRISPick was used on June 7, 2023. For this pipeline, we reckoned that an updated CRISPick output migtht be more appropriate. Thus, CRISPick has been run on Feb 16, 2026 as an example for this pipeline. 
+
+Should result in two txt files, one for left gRNAs, another for right gRNAs.
+
+#Step5: gRNA pairing A
+##Read in CRISPick outputs 
+```{r}
+Left_CRISPick<-read.delim("SNIP-R_sgRNApairing/CRISPick/Left-sgrna-designs.txt")
+
+Right_CRISPick<-read.delim("SNIP-R_sgRNApairing/CRISPick/Left-sgrna-designs.txt")
+```
+
+##Step5A: Select the top 5 best sgRNAs for each flank region
+
+This can be done by taking into account on-target and off-target score. For instance, by calculating the weighted score. Weighted score takes into account on-target and off-target ranking from crispick, where we give a slight more weight of on-target score (66%) and slight less weight of off-target score (33%). Previous versions of CRISPick output had Off target rank, but the current version do not have this. Could substitute Off target ranking with CFD based ranking. However, as recent versions of CRISPick do not output off target ranking, for the purposes of this github, I will rank the off-target based on CFD. In order to calculate the weighted score. 
+
+```{r}
+
+#Calculate the OffTarget Rank
+Left_CRISPick_Sub <- Left_CRISPick %>%
+  group_by(Input) %>%
+  mutate(rank = min_rank(Aggregate.CFD.Score)) %>%
+  arrange(Input, rank, Aggregate.CFD.Score) %>%
+  ungroup()
+
+Right_CRISPick_Sub <- Right_CRISPick %>%
+  group_by(Input) %>%
+  mutate(rank = min_rank(Aggregate.CFD.Score)) %>%
+  arrange(Input, rank, Aggregate.CFD.Score) %>%
+  ungroup()
+
+Left_CRISPick_Subset<-Left_CRISPick_Sub%>%select(one_of(c("Input","sgRNA.Sequence","On.Target.Efficacy.Score","On.Target.Rank","rank")))%>%dplyr::rename(Off.Target.Rank=rank)
+Right_CRISPick_Subset<-Right_CRISPick_Sub%>%select(one_of(c("Input","sgRNA.Sequence","On.Target.Efficacy.Score","On.Target.Rank","rank")))%>%dplyr::rename(Off.Target.Rank=rank)
+
+#Set the weight
+On_weight<-0.667
+Off_weight<-0.333
+
+
+#Calculate the weighted scores
+Left_CRISPick_Subset<-Left_CRISPick_Subset %>% group_by(Input)  %>% mutate(Weighted_Score=On_weight*On.Target.Rank + Off_weight*Off.Target.Rank) #calculate the weighted score based on off target rank and on target rank
+Left_CRISPick_Subset<-Left_CRISPick_Subset %>% group_by(Input)  %>% slice_min(order_by=Weighted_Score,n=5) #group by flank region > take the 5 outputs with the lowest score
+
+Right_CRISPick_Subset<-Right_CRISPick_Subset %>% group_by(Input)  %>% mutate(Weighted_Score=On_weight*On.Target.Rank + Off_weight*Off.Target.Rank) #calculate the weighted score based on off target rank and on target rank
+Right_CRISPick_Subset<-Right_CRISPick_Subset %>% group_by(Input)  %>% slice_min(order_by=Weighted_Score,n=5) #group by flank region > take the 5 outputs with the lowest score
+
+
+#combine the outputs from left and right weighted score/top5 gRNAs
+Step5A<-bind_rows(Left_CRISPick_Subset,Right_CRISPick_Subset)
+Step5A$Input<-gsub(":","-",Step5A$Input) #replace the : to - in the chr:start-stop
+names(Step5A)[names(Step5A)=="Input"]<-"flank" #rename column Input to flank
+```
+
+##Step5B: Match left and right flanks to respective ROI
+```{r}
+conversion<-read.delim("SNIP-R_sgRNApairing/Step2_01_ROItoflank.bed.txt") #generated from step2
+Leftflank_conversion<-conversion%>%select(ROI,LeftFlank,Type,Size)%>%dplyr::rename(flank=LeftFlank)%>%mutate(side="left")
+Rightflank_conversion<-conversion%>%select(ROI,RightFlank,Type,Size)%>%dplyr::rename(flank=RightFlank)%>%mutate(side="right")
+conversion_v2<-rbind(Leftflank_conversion,Rightflank_conversion)
+
+Step5B<-full_join(Step5A,conversion_v2) #combine ROI to flank
+
+
+#clean up
+Step5B<- Step5B %>%arrange(ROI)%>%select(ROI,flank,sgRNA.Sequence,On.Target.Efficacy.Score)
+```
+#Step6: gRNA pairing A
+```{r}
+region_topN <- function(region,N) {
+  rows <- dplyr::filter(Step5B, grepl(region,ROI)) # filter rows within all_3 that matches the ROI
+   X<-split(rows, rows$flank) #split by the value in column input
+ left <- as.data.frame(X[[1]]) #arbitrarily assign first as left
+ right <- as.data.frame(X[[2]]) #arbitrarily assign second as right
+ colnames(left) <- paste("Left", colnames(left), sep = "_") #mark left in colnames
+ colnames(right) <- paste("Right", colnames(right), sep = "_") #mark right in colnames
+ combbs <- tidyr::expand_grid(left,right)#pairwise comb every left row by every right row (to make this function work, need to provide separate column names)
+ combbs <- dplyr::mutate(combbs, Summed_Score = Left_On.Target.Efficacy.Score + Right_On.Target.Efficacy.Score) #sum the 2 on target efficiency columns
+ return(combbs %>%                                      # Top 10 highest values by group
+  arrange(desc(Summed_Score)) %>% 
+  dplyr::slice(1:N))
+}
+
+datalist <- lapply(unique(Step5B$ROI),region_topN,N=25) #perform the function region_topN for all the ROI then put into a dataframe # OUTPUT ALL 25!!!
+
+Step6_final_output = do.call(rbind, datalist)
+```
+
+#Step7: Check for BSMBI cutsite
+```{r}
+L1<-filter(Step6_final_output, grepl("CGTCTC",Left_sgRNA.Sequence))
+R1<-filter(Step6_final_output, grepl("CGTCTC",Right_sgRNA.Sequence))
+L2<-filter(Step6_final_output, grepl("GAGACG",Left_sgRNA.Sequence))
+R2<-filter(Step6_final_output, grepl("GAGACG",Right_sgRNA.Sequence))
+```
+
+#Step8: gRNA pairing 2
+
+```{r}
+#bring the paired gRNA that was outputed by Deb's gRNA pairing code above containing ALL 25 pairs ALREADY ordered by descending summed score
+
+
+#Notes about what variables mean: max = max numbers of time to which a particular guide RNA could be outputed, region = region of interest, N = total number of guide pairs to generate. I put the max as 3 --> this means 4 unique guides will be used when 10 pairs are obtained.  
+
+top_pairs4 <- function(region, N, max) {
+  # Filter rows based on the region
+  row <- dplyr::filter(Step6_final_output, grepl(region, Left_ROI))
+  
+  # Initialize variables
+  picked_elements <- data.frame()  # Empty data frame to store entire rows
+  pair_count <- 0
+  
+  # Initialize counters for the left and right gRNAs
+  left_gRNA_count <- c()  # To store how many times each left gRNA is used
+  right_gRNA_count <- c()  # To store how many times each right gRNA is used
+  
+  # Loop through each gRNA pair
+  for (i in 1:nrow(row)) {
+    pair <- row[i, ]  # Select one gRNA pair
+    left_gRNA <- pair$Left_sgRNA.Sequence
+    right_gRNA <- pair$Right_sgRNA.Sequence  # Extract the sequences
+    
+    # Count how many times the left and right gRNAs have been picked
+    left_count <- sum(left_gRNA_count == left_gRNA)  # Count occurrences of left gRNA
+    right_count <- sum(right_gRNA_count == right_gRNA)  # Count occurrences of right gRNA
+
+    # Ensure that unseen gRNAs have a count of 0 (not NA)
+    if (is.na(left_count)) left_count <- 0
+    if (is.na(right_count)) right_count <- 0
+    
+    # Check if both gRNAs are under the max limit
+    if (left_count < max && right_count < max) {
+      # Increment the pair count and add the entire row to picked_elements
+      pair_count <- pair_count + 1
+      picked_elements <- rbind(picked_elements, pair)  # Add the entire pair (including ID and other columns)
+      
+      # Update the usage counters for left and right gRNAs
+      left_gRNA_count <- c(left_gRNA_count, left_gRNA)
+      right_gRNA_count <- c(right_gRNA_count, right_gRNA)
+    } else {
+      next  # Skip this pair if any of the sequences has been picked too many times
+    }
+    
+    # If we've collected N pairs, break the loop
+    if (pair_count == N) {
+      break
+    }
+  }
+  
+  # Return the picked gRNA pairs (even if fewer than N) along with all columns
+  return(picked_elements)
+}
+
+# Run the function for each unique Left_ROI
+datalist4 <- lapply(unique(Step6_final_output$Left_ROI), top_pairs4, N = 10, max = 3)
+
+datalist4<-as.data.frame(do.call(rbind,datalist4))
+
+```
+
+
+
+
+```{r}
+sessionInfo()
+```
+
+
+

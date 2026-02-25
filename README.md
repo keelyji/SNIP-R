@@ -4,6 +4,8 @@ This repository provides code for designing and analyzing cis-regulatory element
 
 The associated data for SNIP-R screen region selection requires ATAC-seq dataset from Yates et al, 2021 (dbGaP study accession: phs002510.v1.p1). Other datasets used for SNIP-R screen region selection are provided in this repository. For SNIP-R screen analysis code, raw CRISPR screening data from this paper is needed and provided in supplementary table 4.
 
+For reference, SNIP-R identified enhancers from acute and chronic screen in the paper are provided as a bed track called "AllRegulatoryElement_AcuteChronic_SNIP-Rscreens.hg19.bed.txt"
+
 # Contents
 - SNIP-R screen region selection: directory containing the data and scripts for reproducing the screen region selection
 - SNIP-R sgRNA pairing: directory containing the data and scripts for sgRNA pairing for dual-sgRNA mediated deletion

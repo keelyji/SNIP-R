@@ -26,7 +26,7 @@ The associated data for SNIP-R screen region selection requires ATAC-seq dataset
 ## Part B: To design sgRNA pairs for SNIP-R screen
 1. All code for sgRNA pairing are performed in R and R studio, while the gRNA design is performed in Broad Institute's CRISPick. Please note that input and output of CRISPick may change overtime as it is updated by Broad Institute, so the result output might vary and code may need adjustment according to the CRISPick version used. We updated the sgRNA pairing code to reflect the latest CRISPick update as of February 2026 for this repository. In general, the following CRISPick setting was used: Human GRCh37 (hg19), CRISPRko, SpyoCas9 (Chen tracrRNA, RuleSet3), CRISPickQuota: 20.
 - 01_SNIP-R_Pairing_V2.Rmd file contains all the code necessary for this step. The exact R package and version used in the paper are noted in the respective html file.
-3. Necessary dataset are bed file of target regions (e.g., output from Part B).
+2. Necessary dataset are bed file of target regions (e.g., output from Part B).
 
 
 ## Part C: To analyse the result of SNIP-R screen

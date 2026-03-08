@@ -1,0 +1,80 @@
+---
+title: "04_HiCplot"
+output: html_document
+date: "2026-02-17"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Hi-C plot
+```{r}
+library(here)
+library(plotgardener) #plotgardener_1.10.2
+library(plotgardenerData) #plotgardenerData_1.10.0
+```
+
+```{r}
+hic_file_path<-"merged_contact_map.hic"
+Tad25_file_path<-"25000_blocks.bedpe"
+ScreenROI<-"AllOCR_screenedSNIPR.hg19.bed"
+IFNGEnh<-"AllRegulatoryElement_AcuteChronic_SNIP-Rscreens.hg19.bed.txt"
+UpHCV<-"up_in_hcv_vs_flu_Yates2021.bed.txt"
+UpFlu<-"up_in_flu_vs_hcv_Yates2021.bed.txt"
+
+```
+
+
+```{r}
+#parameters
+params <- pgParams(
+    chrom = "chr12", chromstart = 67800000, chromend = 69100000,
+    assembly = "hg19",
+    x = 0.5, just = c("left", "top"),
+    width = 4, length = 4, default.units = "inches"
+)
+
+
+pdf(width=5,height=5)
+#Create plot
+pageCreate(width = 5, height = 5, default.units = "inches",showGuides = FALSE, xgrid = 0, ygrid = 0)
+
+plotHicTriangle(
+    data = hic_file_path, resolution = 10000,
+    zrange = c(0, 20),
+    params=params,
+    y = 0.5, height = 2
+)#can adjust resolution!!!
+
+plotPairsArches(
+  data=Tad25_file_path,params=params,y=2.5,height=0.25,flip=TRUE,fill = NA, linecolor = "black"
+)
+
+
+plotRanges(
+  data=ScreenROI,params=params,y=2.9,height=0.1,collapse = TRUE,spaceHeight = 0.1)
+
+plotRanges(
+  data=IFNGEnh,params=params,y=3.1,height=0.1,collapse = TRUE,spaceHeight = 0.1)
+
+plotRanges(
+  data=UpHCV,params=params,y=3.3,height=0.1,collapse = TRUE,spaceHeight = 0.1)
+
+plotRanges(
+  data=UpFlu,params=params,y=3.5,height=0.1,collapse = TRUE,spaceHeight = 0.1)
+
+plotGenes(
+    params=params,
+    y=3.7, height=0.5
+)
+
+plotGenomeLabel(
+    params = params,
+    y = 4.3, scale = "Kb"
+)
+
+
+dev.off()
+```
+

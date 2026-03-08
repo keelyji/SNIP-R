@@ -10,6 +10,8 @@ For reference, SNIP-R identified enhancers from acute and chronic screen in the 
 - SNIP-R screen region selection: directory containing the data and scripts for reproducing the screen region selection
 - SNIP-R sgRNA pairing: directory containing the data and scripts for sgRNA pairing for dual-sgRNA mediated deletion
 - SNIP-R screen analysis: directory containing the data and scripts for reproducing the screen analyses in the figures
+- Other codes: ATAC-seq code used for the paper and Hi-C visualization with Plotgardener
+- Data: Bed file of all regulatory elements identified by IFNG SNIP-R screens
 
 # Instructions
 ## Part A: To select regions to target with SNIP-R

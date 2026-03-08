@@ -7,11 +7,11 @@ The associated data for SNIP-R screen region selection requires ATAC-seq dataset
 For reference, SNIP-R identified enhancers from acute and chronic screen in the paper are provided as a bed track called "AllRegulatoryElement_AcuteChronic_SNIP-Rscreens.hg19.bed.txt"
 
 # Contents
-- SNIP-R screen region selection: directory containing the data and scripts for reproducing the screen region selection
-- SNIP-R sgRNA pairing: directory containing the data and scripts for sgRNA pairing for dual-sgRNA mediated deletion
-- SNIP-R screen analysis: directory containing the data and scripts for reproducing the screen analyses in the figures
-- Other codes: ATAC-seq code used for the paper and Hi-C visualization with Plotgardener
-- Data: Bed file of all regulatory elements identified by IFNG SNIP-R screens
+- **Part A SNIP-R screen region selection:** directory containing the data and scripts for reproducing the screen region selection
+- **Part B SNIP-R sgRNA pairing:** directory containing the data and scripts for sgRNA pairing for dual-sgRNA mediated deletion
+- **Part C SNIP-R screen analysis:** directory containing the data and scripts for reproducing the screen analyses in the figures
+- **Part D other codes:** ATAC-seq code used for the paper and Hi-C visualization with Plotgardener.
+- **Part E other datasets:** Bed files of all regulatory elements screened and identified by IFNG SNIP-R screens 
 
 # Instructions
 ## Part A: To select regions to target with SNIP-R
@@ -40,6 +40,13 @@ For reference, SNIP-R identified enhancers from acute and chronic screen in the 
 - Screen sequencing data in count matrix form. We provided a counts matrix called "SupplementaryTable4_RawScreenData.xlsx" available in our paper and in the SNIP-R screen analysis folder located in this repository.
 3. Analysis flowchart and details on the analysis are noted in our paper.
 4. We also provided code to replicate main figures in our paper.
+
+## Part D: Other codes
+- Contains ATAC-seq script used for the paper
+- Contains R markdown file for Hi-C visualization with Plotgardener. All files to reproduce figure 1 Hi-C plots are located in Part E: data folder
+
+## Part E: Other datasets
+- Contains bed files of all regulatory elements screened IFNG SNIP-R screen and the identified regulatory elements from the screen
 
 # Contact
 Please contact corresponding author for any questions, comments, or concerns regarding the paper in general. For issues with code/reproducibility, please open a GitHub issue.

@@ -18,6 +18,7 @@ Code and dataset to reproduce main figures from the paper are located in the Par
 # Instructions
 1. Download the github content or clone the github content (expected time: one minute).
 2. Follow below instructions, which are separated into different parts. Note, specific package version is available in the html output file in respective folder.
+3. Downloading R and R studio is necessary to run the codes for SNIP-R region selection, design, and analysis.
 
 ## Part A: To select regions to target with SNIP-R
 1. All code for target region selection are performed in R and R studio. Key packages used in this steps are: bedtoolsr from PhanstielLab, tidyverse, and readr.

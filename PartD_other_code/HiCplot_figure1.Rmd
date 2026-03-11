@@ -15,9 +15,10 @@ library(plotgardener) #plotgardener_1.10.2
 library(plotgardenerData) #plotgardenerData_1.10.0
 ```
 
+Add the file paths - most provided (except .hic file) in the PartE
 ```{r}
-hic_file_path<-"merged_contact_map.hic"
-Tad25_file_path<-"25000_blocks.bedpe"
+hic_file_path<-"merged_contact_map.hic" ##Need to analyze from GSE126117 Bediaga et al
+Tad25_file_path<-"GSE126117_25000_blocks.bedpe"
 ScreenROI<-"AllOCR_screenedSNIPR.hg19.bed"
 IFNGEnh<-"AllRegulatoryElement_AcuteChronic_SNIP-Rscreens.hg19.bed.txt"
 UpHCV<-"up_in_hcv_vs_flu_Yates2021.bed.txt"

@@ -14,6 +14,9 @@ For reference, SNIP-R identified enhancers from acute and chronic screen in the 
 - **Part E other datasets:** Bed files of all regulatory elements screened and identified by IFNG SNIP-R screens 
 
 # Instructions
+1. Download the github content or clone the github content
+2. Follow below instructions, which are separated into different parts. Note, specific package version is available in the html output file in respective folder.
+
 ## Part A: To select regions to target with SNIP-R
 1. All code for target region selection are performed in R and R studio. Key packages used in this steps are: bedtoolsr from PhanstielLab, tidyverse, and readr.
 - 00_ScreenRegionSelection_V2.Rmd file contains all the code necessary for this step. The exact R package and version used in the paper are noted in the respective html file.

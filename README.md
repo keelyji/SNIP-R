@@ -30,7 +30,7 @@ Code and dataset to reproduce main figures from the paper are located in the Par
 - human genome chromosome size file. For instance, download hg19.chrom.sizes from https://hgdownload.cse.ucsc.edu/goldenpath/hg19/bigZips/. We included "human.hg19.genome file" in this repository.
 - bed file containing chr start stop for the genomic locus interested in screening. We included "IFNGlocus.bed.txt" in this repository. 
 - All gene locus bed file downloaded from NCBI. We included "NCBI_hg19_refseq_chr12.bed" for our repository.
-4. Expected time: demo dataset (30 minute)
+4. Expected time: demo dataset (30 minute). Expected output: Finaldf.bed.txt (located in the folder)
 
 
 

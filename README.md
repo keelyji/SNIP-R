@@ -70,9 +70,6 @@ LAPACK: /Library/Frameworks/R.framework/Versions/4.4-arm64/Resources/lib/libRlap
 locale:
 [1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
 
-time zone: America/New_York
-tzcode source: internal
-
 attached base packages:
 [1] stats     graphics  grDevices utils     datasets  methods   base     
 

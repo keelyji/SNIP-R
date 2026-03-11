@@ -6,7 +6,7 @@ The associated data for SNIP-R screen region selection requires ATAC-seq dataset
 
 For reference, SNIP-R identified enhancers from acute and chronic screen in the paper are provided as a bed track called "AllRegulatoryElement_AcuteChronic_SNIP-Rscreens.hg19.bed.txt"
 
-Code and dataset to reproduce main figures are located in the PartC SNIP-R screen analysis folder.
+Code and dataset to reproduce main figures from the paper are located in the Part C SNIP-R screen analysis folder.
 
 # Contents
 - **Part A SNIP-R screen region selection:** directory containing the data and scripts for reproducing the screen region selection

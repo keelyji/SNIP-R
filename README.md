@@ -52,8 +52,8 @@ Code and dataset to reproduce main figures from the paper are located in the Par
 
 ## Part D: Other codes
 - Contains ATAC-seq script used for the paper
-- Contains R markdown file for Hi-C visualization with Plotgardener. All files to reproduce figure 1 Hi-C plots are located in Part E: data folder
-
+- Contains R markdown file for Hi-C visualization with Plotgardener. Requirement: Hi-C dataset analyzed from Bediaga et al. (GEO: GSE126117) and Yates et al. (dbGaP study accession: phs002510.v1.p1).
+  
 ## Part E: Other datasets
 - Contains bed files of all regulatory elements screened IFNG SNIP-R screen and the identified regulatory elements from the screen
 

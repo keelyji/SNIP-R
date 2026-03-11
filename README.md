@@ -14,7 +14,7 @@ For reference, SNIP-R identified enhancers from acute and chronic screen in the 
 - **Part E other datasets:** Bed files of all regulatory elements screened and identified by IFNG SNIP-R screens 
 
 # Instructions
-1. Download the github content or clone the github content
+1. Download the github content or clone the github content (expected time: one minute).
 2. Follow below instructions, which are separated into different parts. Note, specific package version is available in the html output file in respective folder.
 
 ## Part A: To select regions to target with SNIP-R
@@ -27,6 +27,7 @@ For reference, SNIP-R identified enhancers from acute and chronic screen in the 
 - human genome chromosome size file. For instance, download hg19.chrom.sizes from https://hgdownload.cse.ucsc.edu/goldenpath/hg19/bigZips/. We included "human.hg19.genome file" in this repository.
 - bed file containing chr start stop for the genomic locus interested in screening. We included "IFNGlocus.bed.txt" in this repository. 
 - All gene locus bed file downloaded from NCBI. We included "NCBI_hg19_refseq_chr12.bed" for our repository.
+4. Expected time: demo dataset (30 minute)
 
 
 
@@ -35,7 +36,7 @@ For reference, SNIP-R identified enhancers from acute and chronic screen in the 
 
 - 01_SNIP-R_Pairing_V2.Rmd file contains all the code necessary for this step. The exact R package and version used in the paper are noted in the respective html file.
 2. Necessary dataset are bed file of target regions (e.g., output from Part B).
-
+3. Expected time: demo dataset (1 hour)
 
 ## Part C: To analyse the result of SNIP-R screen
 1. All code for target region selection are performed in R and R studio. Key packages used in this steps are: readr, tidyverse, readxl, ggrepel, and patchwork.
@@ -44,6 +45,7 @@ For reference, SNIP-R identified enhancers from acute and chronic screen in the 
 - Screen sequencing data in count matrix form. We provided a counts matrix called "SupplementaryTable4_RawScreenData.xlsx" available in our paper and in the SNIP-R screen analysis folder located in this repository.
 3. Analysis flowchart and details on the analysis are noted in our paper.
 4. We also provided code to replicate main figures in our paper.
+5. Expected time: demo dataset (1 hour)
 
 ## Part D: Other codes
 - Contains ATAC-seq script used for the paper

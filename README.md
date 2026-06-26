@@ -33,6 +33,8 @@ This downloads the repo, builds the image (~10 min the first time), and executes
 
 ## Running on your own data
 
+Part A, which documents candidate target-region selection for the published IFNG screen, is available in `notebooks/PartA_SNIP-R_ScreenRegionSelection/`. This step is provided as an R Markdown notebook for transparency and reproducibility. For new screens, users can supply their own BED file of target regions and begin with Step B-1 below.
+
 ### Step B-1 — Prepare flanking regions for CRISPick
 
 Inputs:

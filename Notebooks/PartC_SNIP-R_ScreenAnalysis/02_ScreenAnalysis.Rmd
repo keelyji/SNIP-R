@@ -1,0 +1,499 @@
+---
+title: "02_ScreenAnalysisFinal"
+output: html_document
+date: "2026-02-12"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(readr)
+library(readxl)
+library(tidyverse)
+library(ggrepel)
+library(patchwork)
+```
+
+# Common Pipeline 
+
+## Step1: Read in files
+
+```{r}
+df<-read_excel("SNIP-R_ScreenAnalysis/SupplementaryTable4_RawScreenData.xlsx")
+
+#separate object for each donor and rename the columns
+d1<-df%>%select(Row.Barcode.IDs, ROI, gRNApairs, SimpleName, contains("d1_"))%>%rename_with(~ sub("^d1_", "", .x))
+d2<-df%>%select(Row.Barcode.IDs, ROI, gRNApairs, SimpleName, contains("d2_"))%>%rename_with(~ sub("^d2_", "", .x))
+d3<-df%>%select(Row.Barcode.IDs, ROI, gRNApairs, SimpleName, contains("d3_"))%>%rename_with(~ sub("^d3_", "", .x))
+
+## Create Low bucket
+d1<- d1 %>% mutate(Acute_Low=Acute_Neg+Acute_M1)
+d2<- d2 %>% mutate(Acute_Low=Acute_Neg+Acute_M1)
+d3<- d3 %>% mutate(Acute_Low=Acute_Neg+Acute_M1)
+```
+
+## Step2: Log normalize the counts for each column
+
+```{r}
+d1[, 5:ncol(d1)] <- lapply(d1[, 5:ncol(d1)], function(x) log2(x/sum(x)*10^6+1))
+d2[, 5:ncol(d2)] <- lapply(d2[, 5:ncol(d2)], function(x) log2(x/sum(x)*10^6+1))
+d3[, 5:ncol(d3)] <- lapply(d3[, 5:ncol(d3)], function(x) log2(x/sum(x)*10^6+1))
+```
+
+## Step3: Remove input not represented reads
+
+```{r}
+keep<-d1$Input_Day4 != 0 & d1$Input_Day14Acute & d2$Input_Day4 != 0 & d2$Input_Day14Acute & d3$Input_Day4 != 0 & d3$Input_Day14Acute
+
+d1_filt<-d1[keep, ]
+d2_filt<-d2[keep, ]
+d3_filt<-d3[keep, ]
+```
+
+## Step4: Normalize by day 14 acute for each respective donor
+
+```{r}
+d1_filt[5:ncol(d1_filt)] <- d1_filt[5:ncol(d1_filt)] - d1_filt$Input_Day14Acute
+d2_filt[5:ncol(d2_filt)] <- d2_filt[5:ncol(d2_filt)] - d2_filt$Input_Day14Acute
+d3_filt[5:ncol(d3_filt)] <- d3_filt[5:ncol(d3_filt)] - d3_filt$Input_Day14Acute
+
+```
+
+## Step 5: Calculate Z-score for each gRNA pairs relative to NTC distribution
+
+```{r}
+Normalize_V2<-function(data,name){
+
+# Calculate stats for normalization
+Stats<-data %>%filter(SimpleName=="NonTargeting")
+Mean<- Stats %>% summarise(across(where(is.numeric), mean))
+Mean$Stats<- "Mean"
+
+SD<-Stats %>% summarise(across(where(is.numeric), sd))
+SD$Stats<- "sd"
+
+#Calculate NormScore for Neg
+temp <- data %>% mutate(Norm_Acute_Neg=(Acute_Neg-Mean$Acute_Neg)/SD$Acute_Neg)
+temp <- temp %>% mutate(Norm_Chronic_Neg=Chronic_Neg-(Mean$Chronic_Neg)/SD$Chronic_Neg)
+
+#Calculate NormScore for Low
+temp <- temp %>% mutate(Norm_Acute_Low=(Acute_Low-Mean$Acute_Low)/SD$Acute_Low)
+
+#Calculate NormScore for High
+temp <- temp %>% mutate(Norm_Acute_High=(Acute_High-Mean$Acute_High)/SD$Acute_High)
+temp <- temp %>% mutate(Norm_Chronic_High=(Chronic_High-Mean$Chronic_High)/SD$Chronic_High)
+
+#Calculate NormScore for M2
+temp <- temp %>% mutate(Norm_Acute_M2=(Acute_M2-Mean$Acute_M2)/SD$Acute_M2)
+temp <- temp %>% mutate(Norm_Chronic_M2=(Chronic_M2-Mean$Chronic_M2)/SD$Chronic_M2)
+
+#Calculate NormScore for M1
+temp <- temp %>% mutate(Norm_Acute_M1=(Acute_M1-Mean$Acute_M1)/SD$Acute_M1)
+temp <- temp %>% mutate(Norm_Chronic_M1=(Chronic_M1-Mean$Chronic_M1)/SD$Chronic_M1)
+
+assign(paste("NormScore",name,sep="_"), temp,env=.GlobalEnv)
+
+}
+
+Normalize_V2(data=d1_filt,"d1")
+Normalize_V2(data=d2_filt,"d2")
+Normalize_V2(data=d3_filt,"d3")
+```
+
+# Per-gRNA pair analysis
+
+## Step6: Center most 80% of sgRNAs for each region
+
+```{r}
+Center8<-function(df,name,OCRn,Controln){
+temp<-df %>% filter(!grepl('ClosedChromatinRegion|NonTargeting',SimpleName)) %>% group_by(SimpleName) %>% mutate(AvgB4filter=mean(Norm_Acute_Low))
+  temp<-temp %>% group_by(SimpleName) %>% mutate(DistanceB4filter=abs(Norm_Acute_Low-AvgB4filter))
+  temp<- temp %>% group_by(SimpleName) %>% slice_min(order_by=DistanceB4filter,n=OCRn)
+
+  ctrl<-df %>%filter(grepl('ClosedChromatinRegion|NonTargeting',SimpleName)) %>% group_by(SimpleName) %>% mutate(AvgB4filter=mean(Norm_Acute_Low))
+  ctrl<-ctrl %>% group_by(SimpleName) %>% mutate(DistanceB4filter=abs(Norm_Acute_Low-AvgB4filter))
+  ctrl<-ctrl %>% group_by(SimpleName) %>% slice_min(order_by=DistanceB4filter,n=Controln)
+  
+  out<-rbind(ctrl,temp)
+  out<-out %>% select(one_of(c("ROI","SimpleName","Norm_Acute_Low","AvgB4filter","DistanceB4filter")))
+  names(out)[names(out) == 'Norm_Acute_Low'] <- 'NormVal'
+  assign(paste("Step6_Norm_Acute_Low",name,sep="_"), out,env=.GlobalEnv)
+  
+  
+  
+  temp<-df %>% filter(!grepl('ClosedChromatinRegion|NonTargeting',SimpleName)) %>% group_by(SimpleName) %>% mutate(AvgB4filter=mean(Norm_Acute_Neg))
+  temp<-temp %>% group_by(SimpleName) %>% mutate(DistanceB4filter=abs(Norm_Acute_Neg-AvgB4filter))
+  temp<- temp %>% group_by(SimpleName) %>% slice_min(order_by=DistanceB4filter,n=OCRn)
+  
+  ctrl<-df %>%filter(grepl('ClosedChromatinRegion|NonTargeting',SimpleName)) %>% group_by(SimpleName) %>% mutate(AvgB4filter=mean(Norm_Acute_Neg))
+  ctrl<-ctrl %>% group_by(SimpleName) %>% mutate(DistanceB4filter=abs(Norm_Acute_Neg-AvgB4filter))
+  ctrl<-ctrl %>% group_by(SimpleName) %>% slice_min(order_by=DistanceB4filter,n=Controln)
+  
+  out<-rbind(ctrl,temp)
+  out<-out %>% select(one_of(c("ROI","SimpleName","Norm_Acute_Neg","AvgB4filter","DistanceB4filter")))
+  names(out)[names(out) == 'Norm_Acute_Neg'] <- 'NormVal'
+  assign(paste("Step6_Norm_Acute_Neg",name,sep="_"), out,env=.GlobalEnv)
+}
+
+
+#Check 
+nrow(NormScore_d1%>%filter(SimpleName=="ClosedChromatinRegion"))
+nrow(NormScore_d1%>%filter(SimpleName=="NonTargeting"))
+
+Center8(NormScore_d1,"d1",OCRn=8,Controln=24)
+Center8(NormScore_d2,"d2",OCRn=8,Controln=24)
+Center8(NormScore_d3,"d3",OCRn=8,Controln=24)
+
+
+```
+
+## Plot: gRNA distribution plot of all gRNAs per donor
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(patchwork)
+
+#adjust
+highlight<-"0"
+
+
+
+dataframe<-Step6_Norm_Acute_Low_d1%>%filter(SimpleName!="sgIFNG")
+#run
+dataframe$y<-1
+line_values1<-dataframe
+line_values2<-as.numeric(line_values1$NormVal)
+#color
+line_values1$color<-"#474F58"
+line_values1$color[line_values1$SimpleName==highlight]<-"red" 
+#alpha
+line_values1$alpha<-"0.05"
+line_values1$alpha[line_values1$SimpleName==highlight]<-"1" 
+#graph
+plot1<-ggplot(line_values1%>%arrange(alpha),aes(x=as.numeric(NormVal,alpha=alpha),y=y))+geom_vline(xintercept=line_values2,color=line_values1$color,alpha=as.numeric(line_values1$alpha),size=1)+ylim(c(0,0.5))+ggtitle(paste("(donor1)", highlight))+xlab("Z-score for each sgRNA pairs") +theme(axis.text.y=element_blank(),axis.ticks.y=element_blank())+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+scale_alpha_continuous(range=c(0,1))+scale_x_continuous(n.breaks=6,limits=c(-4,4))
+
+
+dataframe<-Step6_Norm_Acute_Low_d2%>%filter(SimpleName!="sgIFNG")
+#run
+dataframe$y<-1
+line_values1<-dataframe
+line_values2<-as.numeric(line_values1$NormVal)
+#color
+line_values1$color<-"#474F58"
+line_values1$color[line_values1$SimpleName==highlight]<-"red" 
+#alpha
+line_values1$alpha<-"0.05"
+line_values1$alpha[line_values1$SimpleName==highlight]<-"1" 
+#graph
+plot2<-ggplot(line_values1%>%arrange(alpha),aes(x=as.numeric(NormVal,alpha=alpha),y=y))+geom_vline(xintercept=line_values2,color=line_values1$color,alpha=as.numeric(line_values1$alpha),size=1)+ylim(c(0,0.5))+ggtitle(paste("(donor2)", highlight))+xlab("Z-score for each sgRNA pairs") +theme(axis.text.y=element_blank(),axis.ticks.y=element_blank())+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+scale_alpha_continuous(range=c(0,1))+scale_x_continuous(n.breaks=6,limits=c(-4,4))
+
+
+dataframe<-Step6_Norm_Acute_Low_d3%>%filter(SimpleName!="sgIFNG")
+#run
+dataframe$y<-1
+line_values1<-dataframe
+line_values2<-as.numeric(line_values1$NormVal)
+#color
+line_values1$color<-"#474F58"
+line_values1$color[line_values1$SimpleName==highlight]<-"red" 
+#alpha
+line_values1$alpha<-"0.05"
+line_values1$alpha[line_values1$SimpleName==highlight]<-"1" 
+#graph
+plot3<-ggplot(line_values1%>%arrange(alpha),aes(x=as.numeric(NormVal,alpha=alpha),y=y))+geom_vline(xintercept=line_values2,color=line_values1$color,alpha=as.numeric(line_values1$alpha),size=1)+ylim(c(0,0.5))+ggtitle(paste("(donor3)", highlight))+xlab("Z-score for each sgRNA pairs") +theme(axis.text.y=element_blank(),axis.ticks.y=element_blank())+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+scale_alpha_continuous(range=c(0,1))+scale_x_continuous(n.breaks=6,limits=c(-4,4))
+
+
+# stack vertically
+(plot1 / plot2 / plot3) + plot_layout(ncol = 1)
+
+```
+
+# For Per-region analysis
+
+## Step6A: Calculate per-OCR analysis
+
+```{r}
+library(dplyr)
+
+#Select only Normalized columns that has been Z-scored
+
+d1_PerOCR <- NormScore_d1 %>%
+  group_by(SimpleName) %>%
+  summarise(
+    across(where(is.numeric), mean),
+    .groups = "drop"
+  )
+
+d2_PerOCR <- NormScore_d2 %>%
+  group_by(SimpleName) %>%
+  summarise(
+    across(where(is.numeric), mean),
+    .groups = "drop"
+  )
+
+d3_PerOCR <- NormScore_d3 %>%
+  group_by(SimpleName) %>%
+  summarise(
+    across(where(is.numeric), mean),
+    .groups = "drop"
+  )
+
+
+
+```
+
+## Step6B: Focusing on acute low
+
+```{r}
+d1_PerOCR_AcuteLow<-d1_PerOCR%>%select(SimpleName,Norm_Acute_Low)
+d2_PerOCR_AcuteLow<-d2_PerOCR%>%select(SimpleName,Norm_Acute_Low)
+d3_PerOCR_AcuteLow<-d3_PerOCR%>%select(SimpleName,Norm_Acute_Low)
+
+d1_PerOCR_AcuteLow$donor<-"donor1"
+d2_PerOCR_AcuteLow$donor<-"donor2"
+d3_PerOCR_AcuteLow$donor<-"donor3"
+
+PerOCR_AcuteLow<-rbind(d1_PerOCR_AcuteLow,d2_PerOCR_AcuteLow,d3_PerOCR_AcuteLow)
+
+```
+
+## Plot: gRNA distribution plot for for acute low (per OCR)
+
+```{r, fig.width=8, fig.height=1.5}
+#adjust
+PerOCR_AcuteLow_Sweiss<-PerOCR_AcuteLow%>%filter(SimpleName!="sgIFNG")
+highlight<-"0"
+
+line_values1<-PerOCR_AcuteLow_Sweiss
+
+#run
+line_values1$y<-1
+#color
+line_values1$color<-"#474F58"
+line_values1$color[line_values1$SimpleName==highlight]<-"red" 
+
+#alpha
+line_values1$alpha<-0.05
+line_values1$alpha[line_values1$SimpleName==highlight]<-1 
+
+#graph
+plot3<-ggplot(line_values1%>%arrange(alpha),aes(x=as.numeric(Norm_Acute_Low,alpha=alpha),y=y)) +geom_vline(xintercept=as.numeric(line_values1$Norm_Acute_Low),color=line_values1$color,alpha=as.numeric(line_values1$alpha),size=1)+ylim(c(0,0.5))+ggtitle(highlight)+xlab("Normalized Score") +theme(axis.text.y=element_blank(),axis.ticks.y=element_blank())+ theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+scale_alpha_continuous(range=c(0,1)) +scale_x_continuous(n.breaks=10,limits=c(-2.5,2.5))
+plot3
+
+```
+
+## Plot: X-Y concordance plot
+
+```{r}
+CP<-PerOCR_AcuteLow%>%pivot_wider(names_from = donor,values_from = Norm_Acute_Low)
+
+CP$Color<-"OCR"
+CP$Color[CP$SimpleName=="sgIFNG"]<-"sgIFNG"
+CP$Color[CP$SimpleName=="0"]<-"Promoter"
+CP$Color[CP$SimpleName=="ClosedChromatinRegion"]<-"ClosedChromatinRegion"
+CP$Color[CP$SimpleName=="NonTargeting"]<-"NonTargeting"
+
+palette<-c("#fdc893","#1d517b","#939598","#b16d95","#f7941d")
+
+
+library(ggrepel)
+Stat13<-cor.test(CP$donor1, CP$donor3, method = "pearson")
+
+# Plot
+plot1 <- ggplot(CP, aes(donor1, donor3, color = Color)) + 
+  geom_point() + 
+  scale_colour_manual(values = palette) +
+  ggtitle("Concordance Plot") +
+  theme_bw() +
+  scale_alpha(range = c(0.5, 1)) +
+  geom_smooth(method = "lm", se = FALSE, color = "black", linetype = "dashed") +
+  annotate("text", x = 3, y = -0.9, 
+           label = paste0("r = ", round(Stat13$estimate, 4)),
+           hjust = 3, size = 5) +
+  annotate("text", x = 3, y = -0.9, 
+           label = paste0("P = ", round(Stat13$p.value, 3)),
+           hjust = 1, size = 5)+xlim(c(-1.3,3.2))+ylim(c(-1.3,3.2))
+
+plot1
+
+
+Stat12<-cor.test(CP$donor1, CP$donor2, method = "pearson")
+plot2 <- ggplot(CP, aes(donor1, donor2, color = Color)) + 
+  geom_point() + 
+  scale_colour_manual(values = palette) +
+  ggtitle("Concordance Plot") +
+  theme_bw() +
+  scale_alpha(range = c(0.5, 1)) +
+  geom_smooth(method = "lm", se = FALSE, color = "black", linetype = "dashed") +
+  annotate("text", x = 3, y = -0.9, 
+           label = paste0("r = ", round(Stat12$estimate, 4)),
+           hjust = 3, size = 5) +
+  annotate("text", x = 3, y = -0.9, 
+           label = paste0("P = ", round(Stat12$p.value, 3)),
+           hjust = 1, size = 5)+xlim(c(-1.3,3.2))+ylim(c(-1.3,3.2))
+
+plot2
+
+
+
+
+Stat32<-cor.test(CP$donor3, CP$donor2, method = "pearson")
+plot3 <- ggplot(CP, aes(donor3, donor2, color = Color)) + 
+  geom_point() + 
+  scale_colour_manual(values = palette) +
+  ggtitle("Concordance Plot") +
+  theme_bw() +
+  scale_alpha(range = c(0.5, 1)) +
+  geom_smooth(method = "lm", se = FALSE, color = "black", linetype = "dashed") +
+  annotate("text", x = 3, y = -0.9, 
+           label = paste0("r = ", round(Stat32$estimate, 4)),
+           hjust = 3, size = 5) +
+  annotate("text", x = 3, y = -0.9, 
+           label = paste0("P = ", round(Stat32$p.value, 3)),
+           hjust = 1, size = 5)+xlim(c(-1.3,3.2))+ylim(c(-1.3,3.2))
+
+
+plot3
+
+# ggsave("Figure3d_1.pdf",plot1,width=5,height=3)
+# ggsave("Figure3d_2.pdf",plot2,width=5,height=3)
+# ggsave("Figure3d_3.pdf",plot3,width=5,height=3)
+
+```
+
+# For pan-donor per-region analysis
+
+## Step6: Join the donor data
+
+```{r}
+#Select only Normalized columns that has been Z-scored
+NormScore_d1<-NormScore_d1%>%select(SimpleName,Row.Barcode.IDs,contains("Norm"))
+NormScore_d2<-NormScore_d2%>%select(SimpleName,Row.Barcode.IDs,contains("Norm"))
+NormScore_d3<-NormScore_d3%>%select(SimpleName,Row.Barcode.IDs,contains("Norm"))
+
+#Rename column Normalized Value with donor number
+colnames(NormScore_d1)[-c(1:2)] <- paste0("d1_", colnames(NormScore_d1)[-c(1:2)])
+colnames(NormScore_d2)[-c(1:2)] <- paste0("d2_", colnames(NormScore_d2)[-c(1:2)])
+colnames(NormScore_d3)[-c(1:2)] <- paste0("d3_", colnames(NormScore_d3)[-c(1:2)])
+
+#Create a metatable
+Join1<-full_join(NormScore_d1,NormScore_d2)
+Join2<-full_join(Join1,NormScore_d3)
+
+```
+
+## Step7: Calculate pan-donor Z-score
+
+```{r}
+#Calculate Pan-donor Zscore (PDZ)
+PanDonorAnalysis_AcuteLow<-Join2%>%mutate(PDZ=(d1_Norm_Acute_Low+d2_Norm_Acute_Low+d3_Norm_Acute_Low)/3)
+PanDonorAnalysis_AcuteNeg<-Join2%>%mutate(PDZ=(d1_Norm_Acute_Neg+d2_Norm_Acute_Neg+d3_Norm_Acute_Neg)/3)
+PanDonorAnalysis_AcuteM1<-Join2%>%mutate(PDZ=(d1_Norm_Acute_M1+d2_Norm_Acute_M1+d3_Norm_Acute_M1)/3)
+PanDonorAnalysis_AcuteM2<-Join2%>%mutate(PDZ=(d1_Norm_Acute_M2+d2_Norm_Acute_M2+d3_Norm_Acute_M2)/3)
+PanDonorAnalysis_AcuteHigh<-Join2%>%mutate(PDZ=(d1_Norm_Acute_High+d2_Norm_Acute_High+d3_Norm_Acute_High)/3)
+```
+
+## Step8: Calculate pan-donor normalized score
+
+```{r}
+
+# pull all control values once
+control_pattern <- "^NonTargeting"
+controls <- PanDonorAnalysis_AcuteLow %>%
+  filter(grepl(control_pattern, SimpleName)) %>%
+  pull(PDZ)
+
+# for each ROI (everything except controls), compute mean + t-test vs controls
+PanDonorNormalizedScore_AcuteLow <- PanDonorAnalysis_AcuteLow %>%
+  filter(!grepl(control_pattern, SimpleName)) %>%   # keep only ROIs
+  group_by(SimpleName) %>%
+  summarise(
+    meanZ = mean(PDZ, na.rm = TRUE),
+    tval  = {
+      x <- PDZ
+      if (length(na.omit(x)) < 2 || length(na.omit(controls)) < 2) NA_real_
+      else unname(t.test(x, controls)$statistic)
+    },
+    pval  = {
+      x <- PDZ
+      if (length(na.omit(x)) < 2 || length(na.omit(controls)) < 2) NA_real_
+      else t.test(x, controls)$p.value
+    },
+    .groups = "drop"
+  )
+
+#Add NonTargeting back in just for figure purposes
+controlmean<-c("NonTargeting",mean(controls),0,1)
+
+PanDonorNormalizedScore_AcuteLow<-rbind(PanDonorNormalizedScore_AcuteLow,controlmean)
+
+```
+
+## Plot: Pan-donor volcano plot
+
+```{r}
+
+library(ggrepel)
+library(dplyr)
+
+#Set the name for each condition
+PanDonorNormalizedScore_AcuteLow<-PanDonorNormalizedScore_AcuteLow%>%filter(SimpleName!="sgIFNG")
+PanDonorNormalizedScore_AcuteLow$Color<-"OCR"
+PanDonorNormalizedScore_AcuteLow$Color[PanDonorNormalizedScore_AcuteLow$SimpleName=="sgIFNG"]<-"sgIFNG"
+PanDonorNormalizedScore_AcuteLow$Color[PanDonorNormalizedScore_AcuteLow$SimpleName=="0"]<-"Promoter"
+PanDonorNormalizedScore_AcuteLow$Color[PanDonorNormalizedScore_AcuteLow$SimpleName=="ClosedChromatinRegion"]<-"ClosedChromatinRegion"
+PanDonorNormalizedScore_AcuteLow$Color[PanDonorNormalizedScore_AcuteLow$SimpleName=="NonTargeting"]<-"NonTargeting"
+
+#Set palette
+palette<-c("#939598","#b16d95","#fdc893","#1d517b")
+
+
+# Factor levels for consistent color + legend
+PanDonorNormalizedScore_AcuteLow$Color <- factor(PanDonorNormalizedScore_AcuteLow$Color, levels = c("OCR", "sgIFNG", "Promoter", "ClosedChromatinRegion", "NonTargeting"))
+
+
+# Split data into OCR vs. nonOCR
+PanDonorNormalizedScore_AcuteLow_OCR <- PanDonorNormalizedScore_AcuteLow %>% filter(Color == "OCR")
+PanDonorNormalizedScore_AcuteLow_rest <- PanDonorNormalizedScore_AcuteLow %>% filter(Color != "OCR")
+
+# Plot: ROI first, then others
+plot2 <- ggplot() +
+  # Plot ROI first (underneath)
+  geom_point(data = PanDonorNormalizedScore_AcuteLow_OCR, aes(x = as.numeric(meanZ), y = -log10(as.numeric(pval)), color = Color)) +
+  
+  # Plot others on top
+  geom_point(data = PanDonorNormalizedScore_AcuteLow_rest, aes(x = as.numeric(meanZ), y = -log10(as.numeric(pval)), color = Color)) +
+  # Label non-ROI hits
+  geom_text_repel(
+    data = PanDonorNormalizedScore_AcuteLow_rest %>% filter((as.numeric(pval) < 0.01) & (meanZ > 0.5)),
+    aes(x = as.numeric(meanZ), y = -log10(as.numeric(pval)), label = SimpleName),
+    nudge_x = 0.1,
+    nudge_y = 0.1,
+    colour = "black",
+    max.overlaps = Inf
+  ) +
+  # Label OCR hits too
+  geom_text_repel(
+    data = PanDonorNormalizedScore_AcuteLow_OCR %>% filter((as.numeric(pval) < 0.01) & (meanZ > 0.5)),
+    aes(x = as.numeric(meanZ), y = -log10(as.numeric(pval)), label = SimpleName),
+    nudge_x = 0.1,
+    nudge_y = 0.1,
+    colour = "black",
+    max.overlaps = Inf
+  ) +
+  scale_colour_manual(values = palette) +
+  theme_bw() +
+  ggtitle("IFNG acute low") +
+  xlab("Pan-donor normalized score") +
+  ylab("-log10(pval)") +
+  scale_y_continuous(breaks = seq(0, 10, 2))+xlim(c(-2.5,2.5))
+plot2
+
+```
+
+```{r}
+sessionInfo()
+```

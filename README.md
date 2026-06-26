@@ -20,11 +20,76 @@ The `notebooks/` directory contains the original R Markdown documents that produ
 
 The fastest way to confirm the pipeline runs on your machine:
 
+<<<<<<< HEAD
 ```bash
 git clone https://github.com/keelyji/SNIP-R.git
 cd SNIP-R
 docker build -t snipr:latest .
 docker run --rm -v "$PWD":/work -w /work snipr:latest bash tests/run_demo.sh
+=======
+
+## Part B: To design sgRNA pairs for SNIP-R screen
+1. All code for sgRNA pairing are performed in R and R studio, while the gRNA design is performed in Broad Institute's CRISPick. Please note that input and output of CRISPick may change overtime as it is updated by Broad Institute, so the result output might vary and code may need adjustment according to the CRISPick version used. We updated the sgRNA pairing code to reflect the latest CRISPick update as of February 2026 for this repository. In general, the following CRISPick setting was used: Human GRCh37 (hg19), CRISPRko, SpyoCas9 (Chen tracrRNA, RuleSet3), CRISPickQuota: 20. Guide designs were provided by the CRISPick web tool of the GPP at the Broad Institute (Sanson et al. 2018, Doench et al. 2016)
+
+- 01_SNIP-R_Pairing_V2.Rmd file contains all the code necessary for this step. The exact R package and version used in the paper are noted in the respective html file.
+2. Necessary dataset are bed file of target regions (e.g., output from Part B).
+3. Expected time: demo dataset (1 hour). Expected output for demo: PartB_Output.txt
+
+## Part C: To analyse the result of SNIP-R screen
+1. All code for target region selection are performed in R and R studio. Key packages used in this steps are: readr, tidyverse, readxl, ggrepel, and patchwork.
+- 02_ScreenAnalysis.Rmd file contains all the code necessary for this step.The exact R package and version used in the paper are noted in the respective html file.
+2. Necessary dataset are:
+- Screen sequencing data in count matrix form. We provided a counts matrix called "SupplementaryTable4_RawScreenData.xlsx" available in our paper and in the SNIP-R screen analysis folder located in this repository.
+3. Analysis flowchart and details on the analysis are noted in our paper.
+4. We also provided code to replicate main figures in our paper.
+5. Expected time: demo dataset (1 hour). Expected output for demo: 02_ScreenAnalysis.html.
+
+## Part D: Other codes
+- Contains ATAC-seq script used for the paper
+- Contains R markdown file for Hi-C visualization with Plotgardener. All dataset (except hi-c data) is available in PartE other datasets. Requirement: Hi-C dataset analyzed from Bediaga et al. (GEO: GSE126117). Expected output: HiCplot_expectedOutput.pdf.
+  
+## Part E: Other datasets
+- Contains bed files of all regulatory elements screened IFNG SNIP-R screen and the identified regulatory elements from the screen
+
+# Contact
+Please contact corresponding author for any questions, comments, or concerns regarding the paper in general. For issues with code/reproducibility, please open a GitHub issue.
+
+
+# Compute Environment and Version
+
+```
+R version 4.4.1 (2024-06-14)
+Platform: aarch64-apple-darwin20
+Running under: macOS 15.7.3
+
+Matrix products: default
+BLAS:   /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/libBLAS.dylib 
+LAPACK: /Library/Frameworks/R.framework/Versions/4.4-arm64/Resources/lib/libRlapack.dylib;  LAPACK version 3.12.0
+
+locale:
+[1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+ [1] bedtoolsr_2.30.0-6 patchwork_1.3.0    ggrepel_0.9.6      lubridate_1.9.3   
+ [5] forcats_1.0.0      stringr_1.5.1      dplyr_1.1.4        purrr_1.0.2       
+ [9] tidyr_1.3.1        tibble_3.3.1       ggplot2_4.0.1      tidyverse_2.0.0   
+[13] readxl_1.4.3       readr_2.1.6       
+
+loaded via a namespace (and not attached):
+ [1] gtable_0.3.6       compiler_4.4.1     Rcpp_1.0.13        tidyselect_1.2.1  
+ [5] scales_1.4.0       yaml_2.3.10        fastmap_1.2.0      R6_2.5.1          
+ [9] generics_0.1.3     knitr_1.48         pillar_1.9.0       RColorBrewer_1.1-3
+[13] tzdb_0.4.0         rlang_1.1.4        utf8_1.2.4         stringi_1.8.4     
+[17] xfun_0.47          S7_0.2.0           timechange_0.3.0   cli_3.6.3         
+[21] withr_3.0.1        magrittr_2.0.3     digest_0.6.37      grid_4.4.1        
+[25] rstudioapi_0.16.0  hms_1.1.3          lifecycle_1.0.4    vctrs_0.6.5       
+[29] evaluate_1.0.0     glue_1.8.0         farver_2.1.2       cellranger_1.1.0  
+[33] fansi_1.0.6        rmarkdown_2.28     tools_4.4.1        pkgconfig_2.0.3   
+[37] htmltools_0.5.8.1 
+>>>>>>> b31344848305db5cb1b90242956dab1e42f80b1d
 ```
 
 This downloads the repo, builds the image (~10 min the first time), and executes the demo against the bundled IFNG screen data. The demo runs all three pipeline steps and checks that the IFNG promoter is recovered as a top hit in the pan-donor analysis. Total runtime after the image is built: ~2 minutes.

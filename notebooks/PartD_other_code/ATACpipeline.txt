@@ -1,0 +1,53 @@
+ATAC-seq pipeline
+
+conda install -c bioconda ataqv
+conda install -c bioconda macs2
+conda install -c bioconda trimmomatic
+conda install -c bioconda picard
+conda install -c bioconda bowtie2
+
+#Trim
+java -jar trimmomatic-0.36.jar PE -threads 4 -phred33 -trimlog R1.fastq.gz R2.fastq.gz R1_trimmed.fq R2_trimmed.fq ILLUMINACLIP:/n/app/trimmomatic/0.36/bin/adapters/NexteraPE-PE.fa:2:30:10 LEADING:15 TRAILING:15 SLIDINGWINDOW:4:15 MINLEN:36
+
+#Align
+bowtie2 -x /bowtie2_index/hg19 -X 2000 -p 8 -1 R1_trimmed.fq -2 R2_trimmed.fq -S aligned/Sample1.sam
+
+#Sort and bam
+samtools view -u Sample1.sam | samtools sort -o Sample1.sorted.bam -@ 4
+
+#Markdup
+java -Xmx4g -jar picard.jar MarkDuplicates I= Sample1.sorted.bam O= Sample1.dupmarked.sorted.bam M= Sample1.dupmarked_metrics.txt
+
+#MACS2
+macs2 callpeak -t Sample1.dupmarked.sorted.bam -f BAMPE -n Sample1 -g hs -q 0.01 –outdir peak_calling/
+
+#Create peakUniverse
+module load bedtools/2.30.0
+cat peak_calling/*.narrowPeak > all_merged_peaks_for_quantitation.bed
+bedtools sort -i all_merged_peaks_for_quantitation.bed >
+all_merged_peaks_for_quantitation.sort.bed
+bedtools merge -i all_merged_peaks_for_quantitation.sort.bed >
+all_merged_peaks_for_quantitation.merged.bed
+bedtools subtract -a all_merged_peaks_for_quantitation.merged.bed -b
+/data/senlab/scripts/refs/JDB_blacklist_plus_chrM.hg19.bed -A >
+all_merged_peaks_for_quantitation.merged.blacklisted.bed
+rm all_merged_peaks_for_quantitation.bed all_merged_peaks_for_quantitation.sort.bed
+all_merged_peaks_for_quantitation.merged.bed
+
+#Quant
+bedtools bamtobed -i Sample1.dupmarked.sorted.bam | bedtools intersect -c -a all_merged_peaks_for_quantitation.merged.blacklisted.bed -b stdin -bed > peak_quantitation/Sample1_counts.txt
+
+#Create count matrix
+echo "chr" "start" "end" $(ls *.txt) > rawCounts.bed
+paste ../all_merged_peaks_for_quantitation.merged.blacklisted.bed <(paste *.txt | awk
+'{for(i=4;i<=NF;i+=4) {printf (i<NF) ? $i"\t" : $i"\n";}}') >> rawCounts.bed
+awk '{ gsub(" ", "\t"); print $0;}' rawCounts.bed > rawCounts.bed.tmp1
+awk '{ gsub("_counts.txt", ""); print $0;}' rawCounts.bed.tmp1 > rawCounts.bed
+rm rawCounts.bed.tmp1
+
+#Index bam
+samtools index Sample1.dupmarked.sorted.bam
+
+
+#TDF visualization
+igvtools count -z 8 Sample1.dupmarked.sorted.bam Sample1.dupmarked.sorted.tdf hg19

@@ -76,7 +76,7 @@ SD$Stats<- "sd"
 
 #Calculate NormScore for Neg
 temp <- data %>% mutate(Norm_Acute_Neg=(Acute_Neg-Mean$Acute_Neg)/SD$Acute_Neg)
-temp <- temp %>% mutate(Norm_Chronic_Neg=Chronic_Neg-(Mean$Chronic_Neg)/SD$Chronic_Neg)
+temp <- temp %>% mutate(Norm_Chronic_Neg=(Chronic_Neg-Mean$Chronic_Neg)/SD$Chronic_Neg)
 
 #Calculate NormScore for Low
 temp <- temp %>% mutate(Norm_Acute_Low=(Acute_Low-Mean$Acute_Low)/SD$Acute_Low)

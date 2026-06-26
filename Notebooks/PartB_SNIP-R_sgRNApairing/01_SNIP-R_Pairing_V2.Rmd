@@ -60,8 +60,19 @@ We need to separate the left and right regions and input them separately into CR
 
 #Step3: Getfasta sequence for left and right flanks
 
-bedtools getfasta -fi chr12.fa.fai -bed CP11B_flank_left.bed -fo CP11B_output_getfasta_50bpin_left.fa
+Before running this chunk, decompress the bundled reference once:
+
+    cd notebooks/PartB_SNIP-R_sgRNApairing/
+    gunzip -k chr12.fa.gz   # produces chr12.fa (~130 MB); -k keeps the .gz around
+
+Example bedtools call this chunk wraps:
+
+    bedtools getfasta -fi chr12.fa -bed flank_left.bed -fo flank_left_seqs.fa
+
 ```{r}
+if (!file.exists("chr12.fa")) {
+  stop("chr12.fa not found. Run `gunzip -k chr12.fa.gz` in this directory first.")
+}
 fasta <- normalizePath("chr12.fa")
 FastaLeft<-bedtoolsr::bt.getfasta(fi=fasta,bed=Step2_left)
 FastaRight<-bedtoolsr::bt.getfasta(fi=fasta,bed=Step2_right)

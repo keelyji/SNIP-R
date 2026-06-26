@@ -1,0 +1,176 @@
+# Example SNIP-R screen analysis config.
+# This file describes the sample design of the IFNG SNIP-R screen from the paper.
+# Adapt the fields below to your own screen and pass via:
+#   Rscript partC_screen_analysis.R --counts <file> --config <this_file> --out-dir <dir>
+
+input:
+  # Path to a counts matrix file. Supported: .xlsx, .xls, .tsv, .csv
+  counts_file: example_data/SupplementaryTable4_RawScreenData.xlsx
+  # Optional sheet name (for Excel inputs); first sheet used if omitted.
+  sheet: ~
+
+# Non-numeric columns that identify each row (gRNA pair).
+# These are carried through but never log-normalized or Z-scored.
+id_columns:
+  - Row.Barcode.IDs
+  - ROI
+  - gRNApairs
+  - SimpleName
+
+# Donor structure. Each donor's sample columns must share a common prefix
+# (e.g. "d1_Acute_Neg" for donor d1, sample Acute_Neg).
+# The script strips the prefix and processes each donor independently,
+# then joins back for pan-donor analyses.
+#
+# samples_exclude (optional, per donor): list any sample names that should NOT
+# be loaded from the counts file for this donor. The donor's data for those
+# samples is treated as missing (NA), Z-scores aren't computed for them, and
+# pan-donor averaging automatically uses only the donors that have data.
+donors:
+  - prefix: d1
+    label:  donor1
+    # Donor 1's chronic-stim samples were excluded due to a technical QC
+    # failure in the chronic arm. The chronic analysis therefore runs on
+    # donors 2 and 3 only.
+    samples_exclude:
+      - Chronic_Neg
+      - Chronic_M1
+      - Chronic_M2
+      - Chronic_High
+  - prefix: d2
+    label:  donor2
+  - prefix: d3
+    label:  donor3
+
+# Sample columns expected for every donor, written WITHOUT the donor prefix.
+# These must all exist (as "<prefix>_<name>") in the input counts matrix.
+samples:
+  - Input_Day4
+  - Input_Day14Acute
+  - Acute_Neg
+  - Acute_M1
+  - Acute_M2
+  - Acute_High
+  - Chronic_Neg
+  - Chronic_M1
+  - Chronic_M2
+  - Chronic_High
+
+# Derived columns computed by SUMMING component sample columns (per donor,
+# before log normalization). Use this for pooled buckets.
+computed_columns:
+  - name: Acute_Low
+    components: [Acute_Neg, Acute_M1]
+  - name: Chronic_Low
+    components: [Chronic_Neg, Chronic_M1]
+
+# Rows where ANY of these columns are zero (in ANY donor) are dropped.
+input_filter_columns:
+  - Input_Day4
+  - Input_Day14Acute
+
+# Single column whose log-normalized value is subtracted from every other
+# numeric column (per donor) to give a fold-change vs baseline.
+baseline_column: Input_Day14Acute
+
+# SimpleName value(s) identifying the control distribution for Z-scoring.
+# The MEAN and SD of these rows' baseline-subtracted values define the
+# null for the Z-score in each condition.
+zscore_control: NonTargeting
+
+# Conditions to Z-score (each becomes a "Norm_<condition>" column).
+# Must be among `samples` or `computed_columns`.
+zscore_conditions:
+  - Acute_Neg
+  - Acute_Low
+  - Acute_M1
+  - Acute_M2
+  - Acute_High
+  - Chronic_Neg
+  - Chronic_Low
+  - Chronic_M1
+  - Chronic_M2
+  - Chronic_High
+
+# "Center N" filtering: for each region, keep the N gRNA pairs whose
+# Z-score is closest to the region's mean Z-score. This trims outliers
+# before downstream plotting.
+center_filter:
+  # The Z-scored condition column used to decide closeness.
+  reference_condition: Acute_Low
+  # Number of gRNA pairs to keep per ROI (non-control regions).
+  n_per_roi: 8
+  # Number of gRNA pairs to keep per control SimpleName.
+  n_per_control: 24
+  # SimpleName values treated as controls (kept separately).
+  control_names: [NonTargeting, ClosedChromatinRegion]
+
+# Pan-donor analysis: average each gRNA pair's Z-score across donors,
+# then per-region t-test of pair Z-scores vs `zscore_control` pair Z-scores.
+pandonor:
+  conditions:
+    - Acute_Low
+    - Chronic_Neg
+  # Optional display names - used for volcano plot titles and filenames
+  # (so the rendered file is volcano_Acute.pdf rather than volcano_Acute_Low.pdf).
+  # Underlying data files (pandonor_<cond>.tsv) keep the canonical condition
+  # name so they remain easy to cross-reference.
+  display_names:
+    Acute_Low:   Acute
+    Chronic_Neg: Chronic
+  # SimpleName values to drop from volcano plots (e.g. the positive control).
+  volcano_exclude:
+    - sgIFNG
+  # Volcano label thresholds (any hit with pval < label_p_max AND
+  # |meanZ| > label_z_min gets a region-label drawn on the plot)
+  label_p_max: 0.05
+  label_z_min: 0.5
+  # SimpleName values to label/highlight in volcano plots.
+  highlight_categories:
+    sgIFNG:                sgIFNG
+    Promoter:              "0"
+    ClosedChromatinRegion: ClosedChromatinRegion
+    NonTargeting:          NonTargeting
+  # Color palette for the highlight categories (and "OCR" for the default).
+  palette:
+    OCR:                   "#939598"
+    sgIFNG:                "#b16d95"
+    Promoter:              "#fdc893"
+    ClosedChromatinRegion: "#1d517b"
+    NonTargeting:          "#f7941d"
+
+# Output toggles.
+output:
+  write_per_pair:   true   # Per-donor, per-gRNA-pair Z-scores
+  write_per_region: true   # Per-donor, per-region (mean over gRNA pairs)
+  write_pandonor:   true   # Pan-donor mean-Z + t-test table per condition
+  plot_volcano:     true
+  plot_concordance: true   # All donor pairs in pandonor.conditions[1]
+  plot_distribution: true  # Distribution strip plots
+  # Which highlight categories to make a distribution plot for. One PDF per
+  # category, with all donors stacked vertically. Each category name must
+  # appear in `pandonor.highlight_categories` above. Set to a single name
+  # (or omit) to make just one plot; the names below reproduce the paper's
+  # three-panel NTC / CCR / Promoter figure.
+  plot_distribution_categories: [NonTargeting, ClosedChromatinRegion, Promoter]
+
+  # Multi-track distribution plot (paper figure with one row per region).
+  # Each row shows the per-region mean Z for ALL regions x ALL donors in
+  # gray, with the named region's per-donor means highlighted in red.
+  plot_multitrack_distribution: true
+
+# Multi-track distribution plot configuration. `regions` is a list of
+# SimpleName values (one row per entry, in this order). The reference_condition
+# is which Z-scored condition's per-region mean to plot; defaults to the
+# center_filter.reference_condition above.
+multitrack_distribution:
+  reference_condition: Acute_Low
+  regions:
+    - NonTargeting
+    - ClosedChromatinRegion
+    - "0"        
+    - "-30"      # numeric SimpleName values must be quoted (esp. negative ones)
+    - "-22"
+    - "-15"
+    - "6"
+    - "170"

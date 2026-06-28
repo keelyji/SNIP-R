@@ -1,6 +1,6 @@
 # SNIP-R
 
-A reproducible pipeline for designing and analyzing cis-regulatory element CRISPR screens in primary T cells, as used in the paper *"Scalable hit-and-run platform for enhancer deletion reveals state-specific IFNG regulation in primary human T cells."*
+A reproducible pipeline for designing and analyzing cis-regulatory element CRISPR screens in primary T cells, as used in the paper *"Scalable platform for enhancer deletion reveals state-specific IFNG regulation in primary human T cells."*
 
 The pipeline has three executable steps:
 
